@@ -64,7 +64,8 @@ List of allowed commands to be run on the Atlantis server, Defaults to `version,
 Notes:
 
 - Accepts a comma separated list, ex. `command1,command2`.
-- `version`, `plan`, `apply`, `unlock`, `approve_policies`, `import`, `state` and `all` are available.
+- `version`, `plan`, `apply`, `unlock`, `approve_policies`, `import`, `state`, `policy_check` and `all` are available.
+- `policy_check` is an internal command that runs automatically after `plan` when [policy checking](policy-checking.md) is enabled. It must be explicitly allowlisted when using [`--gh-team-allowlist`](#gh-team-allowlist).
 - `all` is a special keyword that allows all commands. If pass `all` then all other commands will be ignored.
 
 ### `--allow-draft-prs` <Badge text="v0.13.0" type="info"/>
@@ -179,7 +180,7 @@ Examples:
 - Autoplan when any `*.tf` file is modified except in `project2/` directory
   - `--autoplan-file-list='**/*.tf,!project2'`
 - Autoplan when any `*.tf` files or `.yml` files in subfolder of `project1` is modified.
-  - `--autoplan-file-list='**/*.tf,project2/**/*.yml'`
+  - `--autoplan-file-list='**/*.tf,project1/**/*.yml'`
 
 ::: warning NOTE
 By default, changes to modules will not trigger autoplanning. See the flags below.
@@ -239,7 +240,7 @@ atlantis server --azuredevops-hostname="dev.azure.com"
 ATLANTIS_AZUREDEVOPS_HOSTNAME="dev.azure.com"
 ```
 
-Azure DevOps hostname to support cloud and self hosted instances. Defaults to `dev.azure.com`.
+Azure DevOps hostname to support cloud and self-hosted instances. Defaults to `dev.azure.com`.
 
 ::: warning COMPATIBILITY WARNING
 If you are affected by this change [docs](https://learn.microsoft.com/en-us/azure/devops/release-notes/2018/sep-10-azure-devops-launch#administration)
@@ -304,6 +305,30 @@ ATLANTIS_AZUREDEVOPS_WEBHOOK_USER="username@example.com"
 
 Azure DevOps basic authentication username for inbound webhooks.
 
+### `--bitbucket-api-user` <Badge text="v0.36.0+" type="info"/>
+
+```bash
+atlantis server --bitbucket-api-user="apiuser@example.com"
+# or
+ATLANTIS_BITBUCKET_API_USER="apiuser@example.com"
+```
+
+Bitbucket username (usually an email) used for API authentication with Bitbucket Cloud. This is used for API calls only. If not specified, Atlantis will use the value of `--bitbucket-user` for API authentication to maintain backward compatibility.
+
+**Note:**
+
+- The backward compatibility is for supporting the existing Bitbucket APP Passwords that are still valid until June 2026(see [here](https://www.atlassian.com/blog/bitbucket/bitbucket-cloud-transitions-to-api-tokens-enhancing-security-with-app-password-deprecation)).
+
+**Config file key:**
+
+```yaml
+bitbucket-api-user: apiuser@example.com
+```
+
+**Environment variable:** `ATLANTIS_BITBUCKET_API_USER`
+
+**Note:** This flag is only relevant for Bitbucket Cloud (bitbucket.org) integrations.
+
 ### `--bitbucket-base-url` <Badge text="v0.36.0+" type="info"/>
 
 ```bash
@@ -334,7 +359,7 @@ atlantis server --bitbucket-user="myuser"
 ATLANTIS_BITBUCKET_USER="myuser"
 ```
 
-Bitbucket username of API user.
+Bitbucket username used for git operations. For Bitbucket Cloud, if `--bitbucket-api-user` is not specified, this value will also be used for API authentication.
 
 ### `--bitbucket-webhook-secret` <Badge text="v0.36.0+" type="info"/>
 
@@ -501,7 +526,7 @@ atlantis server --discard-approval-on-plan
 ATLANTIS_DISCARD_APPROVAL_ON_PLAN=true
 ```
 
-If set, discard approval if a new plan has been executed. Currently only supported on GitHub and GitLab. For GitLab a bot, group or project token is required for this feature.  
+If set, discard approval if a new plan has been executed. Currently only supported on GitHub and GitLab. For GitLab a bot, group or project token is required for this feature.
  Reference: [reset-approvals-of-a-merge-request](https://docs.gitlab.com/api/merge_request_approvals/#reset-approvals-of-a-merge-request)
 
 ### `--emoji-reaction` <Badge text="v0.29.0+" type="info"/>
@@ -518,8 +543,8 @@ Defaults to "" (empty string).
 ::: warning NOTE
 Each VCS provider supports a different list of emojis:
 
-- [Github](https://docs.github.com/en/rest/reactions/reactions?apiVersion=2022-11-28#about-reactions)
-- [Gitlab](https://gitlab.com/gitlab-org/gitlab/-/blob/master/fixtures/emojis/digests.json)
+- [GitHub](https://docs.github.com/en/rest/reactions/reactions?apiVersion=2022-11-28#about-reactions)
+- [GitLab](https://gitlab.com/gitlab-org/gitlab/-/blob/master/fixtures/emojis/digests.json)
 - [Azure DevOps](https://learn.microsoft.com/en-us/azure/devops/project/wiki/markdown-guidance?view=azure-devops#emoji)
 
    :::
@@ -576,7 +601,7 @@ This will bypass `--restrict-file-list` if regex is used, normal commands will s
 
 ::: warning SECURITY WARNING
 It's not supposed to be used with `--disable-apply-all`.
-The command `atlantis apply -p .*` will bypass the restriction and run apply on every projects.
+The command `atlantis apply -p .*` will bypass the restriction and run apply on every project.
 :::
 
 ### `--executable-name` <Badge text="v0.42.0+" type="info"/>
@@ -719,11 +744,21 @@ In versions v0.35.0 and later, the GitHub team name can only be a slug because i
 
 In versions between v0.21.0 and v0.34.0, the GitHub team name can be a name or a slug.
 
-In versions v0.20.1 and below, the Github team name required the case sensitive team name.
+In versions v0.20.1 and below, the GitHub team name required the case sensitive team name.
 
 Comma-separated list of GitHub teams and permission pairs.
 
 By default, any team can plan and apply.
+
+::: tip
+If you are using [policy checking](policy-checking.md), you must also allowlist the `policy_check` command for it to work on manual `atlantis plan` commands:
+
+```bash
+atlantis server --gh-team-allowlist="*:plan,*:policy_check,myteam:apply"
+```
+
+See [Policy Checking documentation](policy-checking.md#step-1-enable-the-workflow) for more details.
+:::
 
 ### `--gh-token` <Badge text="v0.1.3+" type="info"/>
 
@@ -844,6 +879,7 @@ By default, any group can plan and apply.
 
 ::: warning NOTE
 Atlantis needs to be able to view the listed group members, inaccessible or non-existent groups are silently ignored.
+:::
 
 ### `--gitlab-hostname` <Badge text="v0.2.0+" type="info"/>
 
@@ -853,8 +889,20 @@ atlantis server --gitlab-hostname="my.gitlab.enterprise.com"
 ATLANTIS_GITLAB_HOSTNAME="my.gitlab.enterprise.com"
 ```
 
-Hostname of your GitLab Enterprise installation. If using [Gitlab.com](https://gitlab.com),
+Hostname of your GitLab Enterprise installation. If using [GitLab.com](https://gitlab.com),
 don't set. Defaults to `gitlab.com`.
+
+### `--gitlab-status-retry-enabled`
+
+```bash
+atlantis server --gitlab-status-retry-enabled
+# or
+ATLANTIS_GITLAB_STATUS_RETRY_ENABLED=true
+```
+
+Enable enhanced retry logic for GitLab pipeline status updates with exponential backoff.
+
+Defaults to `false`.
 
 ### `--gitlab-token` <Badge text="v0.2.0+" type="info"/>
 
@@ -1010,6 +1058,8 @@ ATLANTIS_MAX_COMMENTS_PER_COMMAND=100
 
 Limit the number of comments published after a command is executed, to prevent spamming your VCS and Atlantis to get throttled as a result. Defaults to `100`. Set this option to `0` to disable log truncation. Note that the truncation will happen on the top of the command output, to preserve the most important parts of the output, often displayed at the end.
 
+When command output exceeds the VCS comment size limit (or when this limit applies), Atlantis splits the output into multiple comments using **intelligent comment splitting**. Split points are chosen so that markdown structure is preserved: the splitter detects whether it is inside a code block (`` ``` ``), a `<details>` block, or inline code (`` ` ``), and inserts appropriate closing and continuation markers so that each comment renders correctly. Continuation comments are labeled with the command name (e.g. "Continued plan output from previous comment") when available.
+
 ### `--parallel-apply` <Badge text="v0.22.0+" type="info"/>
 
 ```bash
@@ -1039,6 +1089,24 @@ ATLANTIS_PARALLEL_POOL_SIZE=100
 ```
 
 Max size of the wait group that runs parallel plans and applies (if enabled). Defaults to `15`
+
+### `--pending-apply-status` <Badge text="v0.36.0+" type="info"/>
+
+```bash
+atlantis server --pending-apply-status
+# or (recommended)
+ATLANTIS_PENDING_APPLY_STATUS=true
+```
+
+Set the commit status to pending when there are planned changes that haven't been applied.
+This prevents merge requests from being merged until all Terraform applies are completed if you have `Pipelines must succeed` enabled on your repository.
+
+When enabled, after running `atlantis plan`, the MR status will show as pending if there are changes
+to apply. Once all projects are successfully applied (or show no changes), the status will update to success.
+
+Defaults to `false`.
+
+Only supported on GitLab
 
 ### `--port` <Badge text="v0.1.3+" type="info"/>
 
@@ -1261,7 +1329,7 @@ ATLANTIS_SILENCE_NO_PROJECTS=true
 `--silence-no-projects` will tell Atlantis to ignore PRs if none of the modified files are part of a project defined in the `atlantis.yaml` file.
 This flag ensures an Atlantis server only responds to its explicitly declared projects.
 This has no effect if projects are undefined in the repo level `atlantis.yaml`.
-This also silences targeted commands (eg. `atlantis plan -d mydir` or `atlantis apply -p myproj`) so if the project is not in the repo config `atlantis.yaml`, these commands will not run or report back in a comment.
+This also silences targeted commands (e.g. `atlantis plan -d mydir` or `atlantis apply -p myproj`) so if the project is not in the repo config `atlantis.yaml`, these commands will not run or report back in a comment.
 
 This is useful when running multiple Atlantis servers against a single repository so you can
 delegate work to each Atlantis server. Also useful when used with pre_workflow_hooks to dynamically generate an `atlantis.yaml` file.
@@ -1416,7 +1484,7 @@ This flag is useful when having multiple projects that need to run a plan and ap
 - [plugin_cache_dir concurrently discussion](https://github.com/hashicorp/terraform/issues/31964)
 - [PR to improve the situation](https://github.com/hashicorp/terraform/pull/33479)
 
-The effect of the race condition is more evident when using parallel configuration to run plan and apply, by disabling the use of plugin cache will impact in the performance when starting a new plan or apply, but in large atlantis deployments with multiple projects and shared modules the use of `--parallel_plan` and `--parallel_apply` is mandatory for an efficient management of the PRs.
+The effect of the race condition is more evident when using parallel configuration to run plan and apply. Disabling the use of plugin cache will impact the performance when starting a new plan or apply, but in large Atlantis deployments with multiple projects and shared modules the use of `--parallel_plan` and `--parallel_apply` is mandatory for an efficient management of the PRs.
 
 ### `--var-file-allowlist` <Badge text="v0.19.5" type="info"/>
 

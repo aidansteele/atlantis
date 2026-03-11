@@ -1,8 +1,12 @@
+// Copyright 2025 The Atlantis Authors
+// SPDX-License-Identifier: Apache-2.0
+
 package runtime_test
 
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -21,13 +25,17 @@ import (
 )
 
 func TestRunStepRunner_Run(t *testing.T) {
+	testRegexSecret := regexp.MustCompile(`((?i)Secret:\s")[^"]*`)
+
 	cases := []struct {
-		Command      string
-		ProjectName  string
-		ExpOut       string
-		ExpErr       string
-		Version      string
-		Distribution string
+		Command                  string
+		ProjectName              string
+		ExpOut                   string
+		ExpErr                   string
+		Version                  string
+		Distribution             string
+		PostProcessOutput        []valid.PostProcessRunOutputOption
+		PostProcessFilterRegexes []*regexp.Regexp
 	}{
 		{
 			Command: "",
@@ -103,6 +111,16 @@ func TestRunStepRunner_Run(t *testing.T) {
 			Command: "echo tf_append_user_agent=$TF_APPEND_USER_AGENT",
 			ExpOut:  "tf_append_user_agent=passthrough\n",
 		},
+		{
+			Command: `echo mySecret: \"foo\"`,
+			ExpOut:  "mySecret: \"<redacted>\"\n",
+			PostProcessOutput: []valid.PostProcessRunOutputOption{
+				"filter_regex",
+			},
+			PostProcessFilterRegexes: []*regexp.Regexp{
+				testRegexSecret,
+			},
+		},
 	}
 	for _, customPolicyCheck := range []bool{false, true} {
 		for _, c := range cases {
@@ -172,7 +190,7 @@ func TestRunStepRunner_Run(t *testing.T) {
 					EscapedCommentArgs:    []string{"-target=resource1", "-target=resource2"},
 					CustomPolicyCheck:     customPolicyCheck,
 				}
-				out, err := r.Run(ctx, nil, c.Command, tmpDir, map[string]string{"TF_APPEND_USER_AGENT": "passthrough"}, true, valid.PostProcessRunOutputShow)
+				out, err := r.Run(ctx, nil, c.Command, tmpDir, map[string]string{"TF_APPEND_USER_AGENT": "passthrough"}, true, c.PostProcessOutput, c.PostProcessFilterRegexes)
 				if c.ExpErr != "" {
 					ErrContains(t, c.ExpErr, err)
 					return
@@ -181,7 +199,7 @@ func TestRunStepRunner_Run(t *testing.T) {
 				// Replace $DIR in the exp with the actual temp dir. We do this
 				// here because when constructing the cases we don't yet know the
 				// temp dir.
-				expOut := strings.Replace(c.ExpOut, "$DIR", tmpDir, -1)
+				expOut := strings.ReplaceAll(c.ExpOut, "$DIR", tmpDir)
 				Equals(t, expOut, out)
 
 				terraform.VerifyWasCalledOnce().EnsureVersion(Eq(logger), NotEq(defaultDistribution), Eq(projVersion))
