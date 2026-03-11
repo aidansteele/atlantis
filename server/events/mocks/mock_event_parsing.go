@@ -4,9 +4,6 @@
 package mocks
 
 import (
-	"reflect"
-	"time"
-
 	gitea "code.gitea.io/sdk/gitea"
 	azuredevops "github.com/drmaxgit/go-azuredevops/azuredevops"
 	github "github.com/google/go-github/v83/github"
@@ -15,6 +12,8 @@ import (
 	gitea0 "github.com/runatlantis/atlantis/server/events/vcs/gitea"
 	logging "github.com/runatlantis/atlantis/server/logging"
 	client_go "gitlab.com/gitlab-org/api/client-go"
+	"reflect"
+	"time"
 )
 
 type MockEventParsing struct {

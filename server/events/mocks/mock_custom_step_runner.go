@@ -4,13 +4,12 @@
 package mocks
 
 import (
-	"reflect"
-	regexp "regexp"
-	"time"
-
 	pegomock "github.com/petergtz/pegomock/v4"
 	valid "github.com/runatlantis/atlantis/server/core/config/valid"
 	command "github.com/runatlantis/atlantis/server/events/command"
+	"reflect"
+	regexp "regexp"
+	"time"
 )
 
 type MockCustomStepRunner struct {
