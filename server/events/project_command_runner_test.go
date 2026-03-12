@@ -97,7 +97,7 @@ func TestDefaultProjectCommandRunner_Plan(t *testing.T) {
 
 	expEnvs := map[string]string{
 		"name":                 "value",
-		"TF_APPEND_USER_AGENT": fmt.Sprintf("Atlantis/ (; %s; .; default; ; +)", ctx.CommandName),
+		"TF_APPEND_USER_AGENT": fmt.Sprintf("atlantis/ (; %s; .; default; ; +)", ctx.CommandName),
 	}
 
 	// Each step will output its step name.
@@ -455,7 +455,7 @@ func TestDefaultProjectCommandRunner_Apply(t *testing.T) {
 					MergeableStatus: models.MergeableStatus{IsMergeable: false},
 				},
 			}
-			tfAppendUA := fmt.Sprintf("Atlantis/ (; %s; .; default; ; +)", ctx.CommandName)
+			tfAppendUA := fmt.Sprintf("atlantis/ (; %s; .; default; ; +)", ctx.CommandName)
 			expEnvs := map[string]string{
 				"key":                  "value",
 				"TF_APPEND_USER_AGENT": tfAppendUA,
@@ -541,7 +541,7 @@ func TestDefaultProjectCommandRunner_ApplyRunStepFailure(t *testing.T) {
 		RepoRelDir:        ".",
 	}
 	expEnvs := map[string]string{
-		"TF_APPEND_USER_AGENT": fmt.Sprintf("Atlantis/ (; %s; .; default; ; +)", ctx.CommandName),
+		"TF_APPEND_USER_AGENT": fmt.Sprintf("atlantis/ (; %s; .; default; ; +)", ctx.CommandName),
 	}
 	When(mockApply.Run(ctx, nil, repoDir, expEnvs)).ThenReturn("apply", fmt.Errorf("something went wrong"))
 
@@ -638,7 +638,7 @@ func TestDefaultProjectCommandRunner_RunEnvSteps(t *testing.T) {
 // Test that it runs the expected import steps.
 func TestDefaultProjectCommandRunner_Import(t *testing.T) {
 	expEnvs := map[string]string{
-		"TF_APPEND_USER_AGENT": "Atlantis/ (; apply; .; default; ; +)",
+		"TF_APPEND_USER_AGENT": "atlantis/ (; apply; .; default; ; +)",
 	}
 	cases := []struct {
 		description   string

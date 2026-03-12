@@ -698,6 +698,7 @@ func NewServer(userConfig UserConfig, config Config) (*Server, error) {
 
 	projectCommandRunner := &events.DefaultProjectCommandRunner{
 		AtlantisVersion:  config.AtlantisVersion,
+		VCSStatusName:    userConfig.VCSStatusName,
 		VcsClient:        vcsClient,
 		Locker:           projectLocker,
 		LockURLGenerator: router,
