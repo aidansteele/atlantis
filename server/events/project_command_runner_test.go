@@ -17,7 +17,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"regexp"
 	"testing"
 
 	"github.com/hashicorp/go-version"
@@ -96,21 +95,35 @@ func TestDefaultProjectCommandRunner_Plan(t *testing.T) {
 		RepoRelDir: ".",
 	}
 
+	expEnvs := map[string]string{
+		"name":                 "value",
+		"TF_APPEND_USER_AGENT": fmt.Sprintf("Atlantis/ (; %s; .; default; ; +)", ctx.CommandName),
+	}
+
 	// Each step will output its step name.
-	When(mockInit.Run(Any[command.ProjectContext](), Any[[]string](), Any[string](), Any[map[string]string]())).ThenReturn("init", nil)
-	When(mockPlan.Run(Any[command.ProjectContext](), Any[[]string](), Any[string](), Any[map[string]string]())).ThenReturn("plan", nil)
-	When(mockApply.Run(Any[command.ProjectContext](), Any[[]string](), Any[string](), Any[map[string]string]())).ThenReturn("apply", nil)
-	When(mockRun.Run(Any[command.ProjectContext](), Any[*valid.CommandShell](), Any[string](), Any[string](), Any[map[string]string](), AnyBool(), Any[[]valid.PostProcessRunOutputOption](), Any[[]*regexp.Regexp]())).ThenReturn("run", nil)
+	When(mockInit.Run(ctx, nil, repoDir, expEnvs)).ThenReturn("init", nil)
+	When(mockPlan.Run(ctx, nil, repoDir, expEnvs)).ThenReturn("plan", nil)
+	When(mockApply.Run(ctx, nil, repoDir, expEnvs)).ThenReturn("apply", nil)
+	When(mockRun.Run(ctx, nil, "", repoDir, expEnvs, true, nil, nil)).ThenReturn("run", nil)
 	res := runner.Plan(ctx)
 
 	Assert(t, res.PlanSuccess != nil, "exp plan success")
 	Equals(t, "https://lock-key", res.PlanSuccess.LockURL)
 	t.Logf("output is %s", res.PlanSuccess.TerraformOutput)
 	Equals(t, "run\napply\nplan\ninit", res.PlanSuccess.TerraformOutput)
-	mockInit.VerifyWasCalledOnce().Run(Any[command.ProjectContext](), Any[[]string](), Any[string](), Any[map[string]string]())
-	mockPlan.VerifyWasCalledOnce().Run(Any[command.ProjectContext](), Any[[]string](), Any[string](), Any[map[string]string]())
-	mockApply.VerifyWasCalledOnce().Run(Any[command.ProjectContext](), Any[[]string](), Any[string](), Any[map[string]string]())
-	mockRun.VerifyWasCalledOnce().Run(Any[command.ProjectContext](), Any[*valid.CommandShell](), Any[string](), Any[string](), Any[map[string]string](), AnyBool(), Any[[]valid.PostProcessRunOutputOption](), Any[[]*regexp.Regexp]())
+	expSteps := []string{"run", "apply", "plan", "init", "env"}
+	for _, step := range expSteps {
+		switch step {
+		case "init":
+			mockInit.VerifyWasCalledOnce().Run(ctx, nil, repoDir, expEnvs)
+		case "plan":
+			mockPlan.VerifyWasCalledOnce().Run(ctx, nil, repoDir, expEnvs)
+		case "apply":
+			mockApply.VerifyWasCalledOnce().Run(ctx, nil, repoDir, expEnvs)
+		case "run":
+			mockRun.VerifyWasCalledOnce().Run(ctx, nil, "", repoDir, expEnvs, true, nil, nil)
+		}
+	}
 }
 
 func TestProjectOutputWrapper(t *testing.T) {
@@ -442,11 +455,19 @@ func TestDefaultProjectCommandRunner_Apply(t *testing.T) {
 					MergeableStatus: models.MergeableStatus{IsMergeable: false},
 				},
 			}
-			When(mockInit.Run(Any[command.ProjectContext](), Any[[]string](), Any[string](), Any[map[string]string]())).ThenReturn("init", nil)
-			When(mockPlan.Run(Any[command.ProjectContext](), Any[[]string](), Any[string](), Any[map[string]string]())).ThenReturn("plan", nil)
-			When(mockApply.Run(Any[command.ProjectContext](), Any[[]string](), Any[string](), Any[map[string]string]())).ThenReturn("apply", nil)
-			When(mockRun.Run(Any[command.ProjectContext](), Any[*valid.CommandShell](), Any[string](), Any[string](), Any[map[string]string](), AnyBool(), Any[[]valid.PostProcessRunOutputOption](), Any[[]*regexp.Regexp]())).ThenReturn("run", nil)
-			When(mockEnv.Run(Any[command.ProjectContext](), Any[*valid.CommandShell](), Any[string](), Any[string](), Any[string](), Any[map[string]string]())).ThenReturn("value", nil)
+			tfAppendUA := fmt.Sprintf("Atlantis/ (; %s; .; default; ; +)", ctx.CommandName)
+			expEnvs := map[string]string{
+				"key":                  "value",
+				"TF_APPEND_USER_AGENT": tfAppendUA,
+			}
+			envStepEnvs := map[string]string{
+				"TF_APPEND_USER_AGENT": tfAppendUA,
+			}
+			When(mockInit.Run(ctx, nil, repoDir, expEnvs)).ThenReturn("init", nil)
+			When(mockPlan.Run(ctx, nil, repoDir, expEnvs)).ThenReturn("plan", nil)
+			When(mockApply.Run(ctx, nil, repoDir, expEnvs)).ThenReturn("apply", nil)
+			When(mockRun.Run(ctx, nil, "", repoDir, expEnvs, true, nil, nil)).ThenReturn("run", nil)
+			When(mockEnv.Run(ctx, nil, "", "value", repoDir, envStepEnvs)).ThenReturn("value", nil)
 
 			res := runner.Apply(ctx)
 			Equals(t, c.expOut, res.ApplySuccess)
@@ -455,15 +476,15 @@ func TestDefaultProjectCommandRunner_Apply(t *testing.T) {
 			for _, step := range c.expSteps {
 				switch step {
 				case "init":
-					mockInit.VerifyWasCalledOnce().Run(Any[command.ProjectContext](), Any[[]string](), Any[string](), Any[map[string]string]())
+					mockInit.VerifyWasCalledOnce().Run(ctx, nil, repoDir, expEnvs)
 				case "plan":
-					mockPlan.VerifyWasCalledOnce().Run(Any[command.ProjectContext](), Any[[]string](), Any[string](), Any[map[string]string]())
+					mockPlan.VerifyWasCalledOnce().Run(ctx, nil, repoDir, expEnvs)
 				case "apply":
-					mockApply.VerifyWasCalledOnce().Run(Any[command.ProjectContext](), Any[[]string](), Any[string](), Any[map[string]string]())
+					mockApply.VerifyWasCalledOnce().Run(ctx, nil, repoDir, expEnvs)
 				case "run":
-					mockRun.VerifyWasCalledOnce().Run(Any[command.ProjectContext](), Any[*valid.CommandShell](), Any[string](), Any[string](), Any[map[string]string](), AnyBool(), Any[[]valid.PostProcessRunOutputOption](), Any[[]*regexp.Regexp]())
+					mockRun.VerifyWasCalledOnce().Run(ctx, nil, "", repoDir, expEnvs, true, nil, nil)
 				case "env":
-					mockEnv.VerifyWasCalledOnce().Run(Any[command.ProjectContext](), Any[*valid.CommandShell](), Any[string](), Any[string](), Any[string](), Any[map[string]string]())
+					mockEnv.VerifyWasCalledOnce().Run(ctx, nil, "", "value", repoDir, expEnvs)
 				}
 			}
 		})
@@ -519,12 +540,15 @@ func TestDefaultProjectCommandRunner_ApplyRunStepFailure(t *testing.T) {
 		ApplyRequirements: []string{},
 		RepoRelDir:        ".",
 	}
-	When(mockApply.Run(Any[command.ProjectContext](), Any[[]string](), Any[string](), Any[map[string]string]())).ThenReturn("apply", fmt.Errorf("something went wrong"))
+	expEnvs := map[string]string{
+		"TF_APPEND_USER_AGENT": fmt.Sprintf("Atlantis/ (; %s; .; default; ; +)", ctx.CommandName),
+	}
+	When(mockApply.Run(ctx, nil, repoDir, expEnvs)).ThenReturn("apply", fmt.Errorf("something went wrong"))
 
 	res := runner.Apply(ctx)
 	Assert(t, res.ApplySuccess == "", "exp apply failure")
 
-	mockApply.VerifyWasCalledOnce().Run(Any[command.ProjectContext](), Any[[]string](), Any[string](), Any[map[string]string]())
+	mockApply.VerifyWasCalledOnce().Run(ctx, nil, repoDir, expEnvs)
 }
 
 // Test run and env steps. We don't use mocks for this test since we're
@@ -613,6 +637,9 @@ func TestDefaultProjectCommandRunner_RunEnvSteps(t *testing.T) {
 
 // Test that it runs the expected import steps.
 func TestDefaultProjectCommandRunner_Import(t *testing.T) {
+	expEnvs := map[string]string{
+		"TF_APPEND_USER_AGENT": "Atlantis/ (; apply; .; default; ; +)",
+	}
 	cases := []struct {
 		description   string
 		steps         []valid.Step
@@ -646,8 +673,8 @@ func TestDefaultProjectCommandRunner_Import(t *testing.T) {
 					LockKey:      "lock-key",
 				}, nil)
 
-				When(mockInit.Run(Any[command.ProjectContext](), Any[[]string](), Any[string](), Any[map[string]string]())).ThenReturn("init", nil)
-				When(mockImport.Run(Any[command.ProjectContext](), Any[[]string](), Any[string](), Any[map[string]string]())).ThenReturn("import", nil)
+				When(mockInit.Run(ctx, nil, repoDir, expEnvs)).ThenReturn("init", nil)
+				When(mockImport.Run(ctx, nil, repoDir, expEnvs)).ThenReturn("import", nil)
 			},
 			expSteps: []string{"import"},
 			expOut: &models.ImportSuccess{
@@ -715,9 +742,9 @@ func TestDefaultProjectCommandRunner_Import(t *testing.T) {
 			for _, step := range c.expSteps {
 				switch step {
 				case "init":
-					mockInit.VerifyWasCalledOnce().Run(Any[command.ProjectContext](), Any[[]string](), Any[string](), Any[map[string]string]())
+					mockInit.VerifyWasCalledOnce().Run(ctx, nil, repoDir, expEnvs)
 				case "import":
-					mockImport.VerifyWasCalledOnce().Run(Any[command.ProjectContext](), Any[[]string](), Any[string](), Any[map[string]string]())
+					mockImport.VerifyWasCalledOnce().Run(ctx, nil, repoDir, expEnvs)
 				}
 			}
 		})
